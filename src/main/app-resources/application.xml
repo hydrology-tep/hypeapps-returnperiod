@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="application">  
+  <jobTemplates>
+    <jobTemplate id="template_hypeapps">
+      <streamingExecutable>/application/node_returnperiod/run.R</streamingExecutable>
+      <defaultParameters>
+         <parameter id="timeOutputData" type="LiteralData" scope="runtime" title="HYPE timeoutput data  (time****.txt)" abstract="timeoutput data file (time****.txt)" minOccurs="1" maxOccurs="10">-9999</parameter>
+         <parameter id="returnPeriod" type="LiteralData" scope="runtime" title="Return Periods (years)" abstract="Return periods (years)" minOccurs="1" maxOccurs="10">2,5,30</parameter>
+      </defaultParameters>  
+      <defaultJobconf>
+        <property id="mapred.task.timeout">6000000</property>
+      </defaultJobconf>
+    </jobTemplate>
+  </jobTemplates>
+  <workflow id="workflow" title="HYPE Return Period Analysis" abstract="This service allow users to estimate return period levels analysing timeoutput data from HYPE model simulations. The output of the service can be used to define warning levels in the Niger-HYPE forecast service (the first 3 return period levels will be used as warning level 1, 2, and 3 respectively.).">
+    <workflowVersion>1.0</workflowVersion>
+    <node id="node_returnperiod">
+      <job id="template_hypeapps"/>
+      <sources>
+        <source refid="string:list">input-1</source>
+      </sources>
+      <parameters>
+         <parameter id="timeOutputData" type="LiteralData" scope="runtime">-9999</parameter>
+         <parameter id="returnPeriod" type="LiteralData" scope="runtime">2,5,30</parameter>
+      </parameters>
+    </node>
+  </workflow>
+</application>

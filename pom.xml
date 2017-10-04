@@ -11,7 +11,7 @@
     <version>2.0.0</version>
   </parent>
   <description>H-TEP Hydrological Modelling Application - Return Period Analysis</description>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0</version>
   <properties>
     <summary>H-TEP Hydrological Modelling Thematic Application - Return Period Analysis</summary>
     <description>H-TEP Hydrological Modelling Thematic Application - Return Period Analysis</description>
@@ -19,19 +19,19 @@
     <yumRepo>hydrology-tep</yumRepo>
   </properties>
   <scm>
-     <connection>scm:git:ssh://git@github.com/hydrology-tep/hypeapps-returnperiod</connection>
+    <connection>scm:git:ssh://git@github.com/hydrology-tep/hypeapps-returnperiod</connection>
     <developerConnection>scm:git:ssh://git@github.com/hydrology-tep/hypeapps-returnperiod</developerConnection>
-    <url>https://github.com/hydrology-tep/hypeapps-returnperiod</url>   
+    <url>https://github.com/hydrology-tep/hypeapps-returnperiod</url>
     <tag>HEAD</tag>
   </scm>
   <profiles>
     <profile>
       <id>package-app</id>
       <activation>
-         <property>
-           <name>env</name>
-           <value>ci</value>
-         </property>
+        <property>
+          <name>env</name>
+          <value>ci</value>
+        </property>
       </activation>
       <build>
         <plugins>
@@ -51,8 +51,8 @@
                     <require>openjpeg2</require>
                   </requires>
                   <postinstallScriptlet combine.self="override">
-		    <scriptFile>${basedir}/src/main/app-resources/scripts/postinstall.sh</scriptFile>
-		    <fileEncoding>utf-8</fileEncoding>
+                    <scriptFile>${basedir}/src/main/app-resources/scripts/postinstall.sh</scriptFile>
+                    <fileEncoding>utf-8</fileEncoding>
                   </postinstallScriptlet>
                 </configuration>
               </execution>

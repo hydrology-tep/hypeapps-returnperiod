@@ -16,7 +16,7 @@
 
 # Application 4: "Return Period Analysis" (hypeapps-returnperiod)
 # Author:         David Gustafsson, SMHI
-# Version:        2017-10-03
+# Version:        2017-11-09
 
 #################################################################################
 ## 1 - Initialization
@@ -51,6 +51,9 @@ if(app.sys=="tep"){
   source("application/util/R/hypeapps-environment.R")  
   source("application/util/R/hypeapps-utils.R")
 }
+## open application logfile
+logFile=appLogOpen(appName = app.name,tmpDir = getwd())
+
 #################################################################################
 ## 2 - Application user inputs
 ## ------------------------------------------------------------------------------
@@ -58,6 +61,9 @@ if(app.sys=="tep"){
 app.input <- getHypeAppInput(appName = app.name)
 
 if(app.sys=="tep"){rciop.log ("DEBUG", paste("...hypeapps-returnperiod input parameters read"), "/node_returnperiod/run.R")}
+log.res=appLogWrite(logText = "Inputs and parameters read",fileConn = logFile$fileConn)
+
+if(app.input$timeFileNum>0){
 
 #################################################################################
 ## 3 - Application setup
@@ -72,6 +78,7 @@ app.setup <- getHypeAppSetup(modelName = model.name,
                              modelFilesURL = model.files.url)
 
 if(app.sys=="tep"){rciop.log ("DEBUG", paste("...hypeapps-returnperiod setup prepared"), "/node_returnperiod/run.R")}
+log.res=appLogWrite(logText = "Application setup prepared",fileConn = logFile$fileConn)
 
 #################################################################################
 ## 4 - Download timeOutput data (COUT, CPRC, CTMP, CRUN, ...)
@@ -80,6 +87,7 @@ if(app.sys=="tep"){rciop.log ("DEBUG", paste("...hypeapps-returnperiod setup pre
 timeOutput.data <- getTimeOutputData(appInput = app.input,
                                      appSetup = app.setup)
 if(app.sys=="tep"){rciop.log ("DEBUG", paste("timeOutput data downloaded from catalogue"), "/node_returnperiod/run.R")}
+log.res=appLogWrite(logText = "TimeOutput data downloaded from catalogue",fileConn = logFile$fileConn)
 
 #################################################################################
 ## 5 - Return Period Magnitude Analysis
@@ -92,14 +100,26 @@ app.output <- analyseTimeOutputData(appSetup = app.setup,appInput = app.input,
                                     timeData = timeOutput.data)
 
 if(app.sys=="tep"){rciop.log ("DEBUG", paste("TimeOutputData analysed and return level files written to output"), "/node_returnperiod/run.R")}
-
+log.res=appLogWrite(logText = "Return period analysis ready - return level magnitude files written to output",fileConn = logFile$fileConn)
 
 ## ------------------------------------------------------------------------------
 ## publish postprocessed results
 if(app.sys=="tep"){
   rciop.publish(path=paste(app.output$outDir,"/*",sep=""), recursive=FALSE, metalink=TRUE)
+  log.res=appLogWrite(logText = "Output files published in application results",fileConn = logFile$fileConn)
 }
 
+}else{
+  log.res=appLogWrite(logText = "something wrong with application input... application stops",fileConn = logFile$fileConn)
+}
+
+
+## ------------------------------------------------------------------------------
+## close and publish the logfile
+log.file=appLogClose(appName = app.name,fileConn = logFile$fileConn)
+if(app.sys=="tep"){
+  rciop.publish(path=logFile$fileName, recursive=FALSE, metalink=TRUE)
+}
 ## ------------------------------------------------------------------------------
 ## exit with appropriate status code
 q(save="no", status = 0)

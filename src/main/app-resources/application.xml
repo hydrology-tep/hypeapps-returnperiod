@@ -4,7 +4,7 @@
     <jobTemplate id="template_hypeapps">
       <streamingExecutable>/application/node_returnperiod/run.R</streamingExecutable>
       <defaultParameters>
-         <parameter id="timeOutputData" type="LiteralData" scope="runtime" title="HYPE timeoutput data  (time****.txt)" abstract="timeoutput data file (time****.txt)" minOccurs="1" maxOccurs="10">-9999</parameter>
+         <parameter id="timeOutputData" type="LiteralData" scope="runtime" title="HYPE timeoutput data  (time****.txt)" abstract="timeoutput data file (time****.txt)" minOccurs="0" maxOccurs="10"></parameter>
          <parameter id="returnPeriod" type="LiteralData" scope="runtime" title="Return Periods (years)" abstract="Return periods (years)" minOccurs="1" maxOccurs="10">2,5,30</parameter>
       </defaultParameters>  
       <defaultJobconf>
@@ -20,7 +20,7 @@
         <source refid="string:list">input-1</source>
       </sources>
       <parameters>
-         <parameter id="timeOutputData" type="LiteralData" scope="runtime">-9999</parameter>
+         <parameter id="timeOutputData" type="LiteralData" scope="runtime"></parameter>
          <parameter id="returnPeriod" type="LiteralData" scope="runtime">2,5,30</parameter>
       </parameters>
     </node>

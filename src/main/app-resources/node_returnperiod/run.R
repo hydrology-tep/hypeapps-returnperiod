@@ -16,11 +16,14 @@
 
 # Application 4: "Return Period Analysis" (hypeapps-returnperiod)
 # Author:         David Gustafsson, SMHI
-# Version:        2017-11-09
+# Version:        2018-01-18
 
 #################################################################################
 ## 1 - Initialization
 ## ------------------------------------------------------------------------------
+## create a date tag to include in output filenames
+app.date = format(Sys.time(), "%Y%m%d_%H%M")
+
 ## set application name
 app.name = "returnperiod"
 ## ------------------------------------------------------------------------------
@@ -52,7 +55,7 @@ if(app.sys=="tep"){
   source("application/util/R/hypeapps-utils.R")
 }
 ## open application logfile
-logFile=appLogOpen(appName = app.name,tmpDir = getwd())
+logFile=appLogOpen(appName = app.name,tmpDir = getwd(),appDate = app.date)
 
 #################################################################################
 ## 2 - Application user inputs
@@ -97,7 +100,7 @@ log.res=appLogWrite(logText = "TimeOutput data downloaded from catalogue",fileCo
 #  rciop.publish(path=paste(timeOutput.data$timeFile[1],"",sep=""), recursive=FALSE, metalink=TRUE)
 #}
 app.output <- analyseTimeOutputData(appSetup = app.setup,appInput = app.input,
-                                    timeData = timeOutput.data)
+                                    timeData = timeOutput.data, appDate = app.date)
 
 if(app.sys=="tep"){rciop.log ("DEBUG", paste("TimeOutputData analysed and return level files written to output"), "/node_returnperiod/run.R")}
 log.res=appLogWrite(logText = "Return period analysis ready - return level magnitude files written to output",fileConn = logFile$fileConn)
@@ -105,7 +108,10 @@ log.res=appLogWrite(logText = "Return period analysis ready - return level magni
 ## ------------------------------------------------------------------------------
 ## publish postprocessed results
 if(app.sys=="tep"){
-  rciop.publish(path=paste(app.output$outDir,"/*",sep=""), recursive=FALSE, metalink=TRUE)
+  #rciop.publish(path=paste(app.output$outDir,"/*",sep=""), recursive=FALSE, metalink=TRUE)
+  for(k in 1:length(app.output$files)){
+    rciop.publish(path=app.output$files[k], recursive=FALSE, metalink=TRUE)
+  }
   log.res=appLogWrite(logText = "Output files published in application results",fileConn = logFile$fileConn)
 }
 

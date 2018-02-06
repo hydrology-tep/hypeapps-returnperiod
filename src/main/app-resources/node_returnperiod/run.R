@@ -16,7 +16,7 @@
 
 # Application 4: "Return Period Analysis" (hypeapps-returnperiod)
 # Author:         David Gustafsson, SMHI
-# Version:        2018-01-18
+# Version:        2018-02-06
 
 #################################################################################
 ## 1 - Initialization
@@ -55,7 +55,7 @@ if(app.sys=="tep"){
   source("application/util/R/hypeapps-utils.R")
 }
 ## open application logfile
-logFile=appLogOpen(appName = app.name,tmpDir = getwd(),appDate = app.date)
+logFile=appLogOpen(appName = app.name,tmpDir = getwd(),appDate = app.date, prefix="000")
 
 #################################################################################
 ## 2 - Application user inputs

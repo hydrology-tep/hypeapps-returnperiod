@@ -16,7 +16,7 @@
 #
 # hypeapps-utils.R: R tools for the HTEP hydrological modelling application 
 # Author:           David Gustafsson, SMHI
-# Version:          2017-11-14  
+# Version:          2018-02-07 
 #
 
 ## --------------------------------------------------------------------------------
@@ -483,7 +483,7 @@ getHypeAppInput<-function(appName){
             # update the number of timeFileNum inputs
             timeFileNum=timeFileNum+1
             
-            # extract the URL from xobs input string:
+            # extract the URL from input string:
             if(timeFileNum==1){
               timeFileURL=strsplit(timeFileIN[i],split = "&")[[1]][1]
             }else{
@@ -794,7 +794,7 @@ getHypeAppSetup<-function(modelName,modelBin,tmpDir,appDir,appName,appInput,mode
       rciop.copy(paste(paste(shapefile.url,shapefile.layer,sep="/"),shapefile.ext[i],sep=""), shapefileDir)
     }
     
-    #open and save shapefile as Rdata
+    # open and save shapefile as Rdata
     shapefileData = readOGR(dsn = shapefileDir, layer = shapefile.layer)
     shapefileRdata = paste(shapefileDir,"/",shapefile.layer,".Rdata",sep="")
     save(list = "shapefileData",file = shapefileRdata)
@@ -807,17 +807,38 @@ getHypeAppSetup<-function(modelName,modelBin,tmpDir,appDir,appName,appInput,mode
   
   ## return period magnitudes default files OR file from input
   if(appName=="forecast"){
+    rpFileCOUT=NULL
+
+    rciop.log ("DEBUG", paste(" appInput$rpfile= ", appInput$rpfile, sep=""), "getHypeSetup")
+    
     if(appInput$rpfile=="default"){
       # download default file from data storage
       rpFileURL = paste(modelFilesURL,"returnlevels",paste(modelName,"-rp-cout.txt",sep=""),sep="/")
-      # download rpfile to forecast output folder
+      # download rpfile to forecast output folder - using rciop.copy since we already have the URL to the file
       rciop.copy(rpFileURL, modelResDir[2])
       # path to downloaded rpfile
       rpFileCOUT = paste(modelResDir[2],paste(paste(modelName,"-rp-cout.txt",sep="")),sep="/")
     }else{
-      # download the user input file to /tmp
-      sysCmd=paste("opensearch-client",appInput$rpfile,"enclosure | ciop-copy -s -U -O /tmp/ -", sep=" ")
+      # download the file specified by user input
+      #
+      # in this case we have to use the opensearch-client command, since the user 
+      # input is a opensearch URL and not the URL to the file
+      
+      # make subfolder for download:
+      targetFolder = paste(tmpDir,"/rpFile_1",sep="")
+      dir.create(targetFolder,recursive = T,showWarnings = F)
+
+      rciop.log ("DEBUG", paste(" targetFolder = ", targetFolder, sep=""), "getHypeSetup")
+      
+      # get file using opensearch-client
+      sysCmd=paste("opensearch-client '",appInput$rpfile,"' enclosure | ciop-copy -s -U -O ",targetFolder,"/ -", sep="")
+      
+      rciop.log ("DEBUG", paste(" sysCmd = ", sysCmd, sep=""), "getHypeSetup")
+      
       rpFileCOUT=system(command = sysCmd,intern = T)
+      
+      rciop.log ("DEBUG", paste(" rpFileCOUT = ", rpFileCOUT, sep=""), "getHypeSetup")
+      
     }
     # check existance of rpFileCOUT and check available return periods in the file
     if(!file.exists(rpFileCOUT)){
@@ -856,7 +877,7 @@ getHypeAppSetup<-function(modelName,modelBin,tmpDir,appDir,appName,appInput,mode
 }
 
 ## -------------------------------------------------------------------------------
-## get eo data from open catalogue
+## get eo data from URL
 getEoData<-function(appInput,appSetup){
   
   #  appInput=list("wlDataNum"=wlDataNum
@@ -880,9 +901,21 @@ getEoData<-function(appInput,appSetup){
   nDownLoad=0
   if(appInput$wlDataNum>0){
     for(i in 1:appInput$wlDataNum){
-      # download data
-      sysCmd=paste("opensearch-client",appInput$wlDataURL[i],"enclosure | ciop-copy -s -U -O /tmp/ -", sep=" ")
+      rciop.log("DEBUG", paste("i=",as.character(i),sep=""), "getEoData")
+      
+      # make subfolder for download:
+      targetFolder = paste(appSetup$tmpDir,"/wlData_",as.character(i),sep="")
+      dir.create(targetFolder,recursive = T,showWarnings = F)
+
+      rciop.log("DEBUG", paste("targetFolder=",targetFolder,sep=""), "getEoData")
+      
+      # get file using opensearch-client
+      sysCmd=paste("opensearch-client '",appInput$wlDataURL[i],"' enclosure | ciop-copy -s -U -O ",appSetup$tmpDir,"/wlData_",as.character(i),"/ -", sep="")
+      
+      rciop.log("DEBUG", paste("sysCmd=",sysCmd,sep=""), "getEoData")
+      
       wlFile=system(command = sysCmd,intern = T)
+      
       if(file.exists(wlFile)){
         nDownLoad=nDownLoad+1
         if(nDownLoad==1){
@@ -952,14 +985,18 @@ readEoData<-function(appSetup,eoData){
 
 ## -------------------------------------------------------------------------------
 ## write eo data in Xobs format
-writeEoData<-function(appSetup,xobsData){
+writeEoData<-function(appSetup,xobsData,appDate,prefix="001"){
   
   # Create folder for data to be published
   outDir = paste(appSetup$tmpDir,'output',sep="/")
   dir.create(outDir,recursive = T,showWarnings = F)
   
+  # variable and subid to include in output filename (we use only the first variable and subid)
+  varName=attr(xobsData,"variable")[1]
+  subID=as.character(attr(xobsData,"subid")[1])
+  
   # output filename
-  xobsFile=paste(outDir,"Xobs-eodata.txt",sep="/")
+  xobsFile=paste(outDir,"/",prefix,"_",appDate,"_Xobs_",varName,"_",subID,".txt",sep="")
   
   # write to file
   outres = WriteXobs(xobsData, filename = xobsFile)
@@ -986,9 +1023,15 @@ getXobsData<-function(appInput,appSetup){
   nDownLoad=0
   if(appInput$xobsNum>0){
     for(i in 1:appInput$xobsNum){
-      # download data
-      sysCmd=paste("opensearch-client",appInput$xobsURL[i],"enclosure | ciop-copy -s -U -O /tmp/ -", sep=" ")
+      
+      # make subfolder for download:
+      targetFolder = paste(appSetup$tmpDir,"/xobsData_",as.character(i),sep="")
+      dir.create(targetFolder,recursive = T,showWarnings = F)
+      
+      # get file using opensearch-client
+      sysCmd=paste("opensearch-client '",appInput$xobsURL[i],"' enclosure | ciop-copy -s -U -O ",appSetup$tmpDir,"/xobsData_",as.character(i),"/ -", sep="")
       xobsFile=system(command = sysCmd,intern = T)
+     
       if(file.exists(xobsFile)){
         nDownLoad=nDownLoad+1
         # add xobs file id number
@@ -1069,8 +1112,13 @@ getTimeOutputData<-function(appInput,appSetup){
   nDownLoad=0
   if(appInput$timeFileNum>0){
     for(i in 1:appInput$timeFileNum){
-      # download data to tmp:
-      sysCmd=paste("opensearch-client ",appInput$timeFileURL[i]," enclosure | ciop-copy -s -U -O ",app.tmp_path, "/ -", sep="")
+      
+      # make subfolder for download:
+      targetFolder = paste(appSetup$tmpDir,"/timeData_",as.character(i),sep="")
+      dir.create(targetFolder,recursive = T,showWarnings = F)
+      
+      # get file using opensearch-client
+      sysCmd=paste("opensearch-client '",appInput$timeFileURL[i],"' enclosure | ciop-copy -s -U -O ",appSetup$tmpDir,"/timeData_",as.character(i),"/ -", sep="")
       timeFile=system(command = sysCmd,intern = T)
       
       if(file.exists(timeFile)){
@@ -1098,7 +1146,7 @@ getTimeOutputData<-function(appInput,appSetup){
 
 ## -------------------------------------------------------------------------------
 ## analyseTimeOutputData - return period analysis on timeOutput data
-analyseTimeOutputData<-function(appSetup,appInput,timeData){
+analyseTimeOutputData<-function(appSetup,appInput,timeData,appDate){
   
   # loop over timeFiles and make the return period analysis
   if(timeData$timeFileNum>0){
@@ -1106,7 +1154,7 @@ analyseTimeOutputData<-function(appSetup,appInput,timeData){
       timeFileIn  = timeData$timeFile[i]
       timeFileName = strsplit(timeFileIn,split = "/")[[1]]
       timeFileName = timeFileName[length(timeFileName)]
-      timeFileOut = paste(appSetup$returnperiodResDir,paste("rp-",timeFileName,sep=""),sep="/")
+      timeFileOut = paste(appSetup$returnperiodResDir,paste("rp_",appDate,"_",timeFileName,sep=""),sep="/")
       
       if(app.sys=="tep"){rciop.log ("DEBUG", paste("   timeFileIn=",timeFileIn,sep=""), "/util/R/hypeapps-utils.R")}
       if(app.sys=="tep"){rciop.log ("DEBUG", paste("   timeFileName=",timeFileName,sep=""), "/util/R/hypeapps-utils.R")}
@@ -1114,10 +1162,17 @@ analyseTimeOutputData<-function(appSetup,appInput,timeData){
       
       # analyse file
       returnPeriodMagnitudes(name.in=timeFileIn,name.out=timeFileOut,wl.rp=appInput$returnPeriod,dist="gev")
+      
+      # save list of output files
+      if(i==1){
+        timeFileOutAll=timeFileOut
+      }else{
+        timeFileOutAll=c(timeFileOutAll,timeFileOut)
+      }
     } 
   }
   
-  appOutput=list("outDir"=appSetup$returnperiodResDir)
+  appOutput=list("outDir"=appSetup$returnperiodResDir,"files"=timeFileOutAll)
   
   
   return(appOutput)
@@ -1144,12 +1199,12 @@ ID2ZF<-function(idpsx){
 ## ymd2str - function to return date string "yyyy-mm-dd" from integer year, month day
 ymd2str<-function(yr,mn,da){
   dateStr=as.character(yr)
-  if(mn>10){
+  if(mn>=10){
     dateStr=paste(dateStr,"-",as.character(mn),sep="")
   }else{
     dateStr=paste(dateStr,"-0",as.character(mn),sep="")
   }
-  if(da>10){
+  if(da>=10){
     dateStr=paste(dateStr,"-",as.character(da),sep="")
   }else{
     dateStr=paste(dateStr,"-0",as.character(da),sep="")
@@ -2212,22 +2267,22 @@ updateModelInput<-function(appSetup=NULL,appInput=NULL,hindcast=NULL,modelForcin
 
 ## -------------------------------------------------------------------------------
 ## prepare application outputs
-prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,modelForcing = NULL,runRes=NULL){
+prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,modelForcing = NULL,runRes=NULL,appDate=NULL){
   
   # Create folder for data to be published
   outDir = paste(appSetup$tmpDir,'output',sep="/")
   dir.create(outDir,recursive = T,showWarnings = F)
   
   ## output file prefixes, to order the results better
-  prefix.img ="001"
-  prefix.csv ="002"
-  prefix.bas ="003"
-  prefix.map ="004"
-  prefix.tim ="005"
-  prefix.oth ="006"
-  prefix.log ="009"
-  prefix.wl.txt = "004"
-  prefix.wl.png = "001"
+  prefix.img =paste("001","_",appDate,sep="")
+  prefix.csv =paste("002","_",appDate,sep="")
+  prefix.bas =paste("003","_",appDate,sep="")
+  prefix.map =paste("004","_",appDate,sep="")
+  prefix.tim =paste("005","_",appDate,sep="")
+  prefix.oth =paste("006","_",appDate,sep="")
+  prefix.log =paste("000","_",appDate,sep="")
+  prefix.wl.txt = paste("004","_",appDate,sep="")
+  prefix.wl.png = paste("001","_",appDate,sep="")
   
   ## get hype2csv file from its URL
   if(!is.null(appSetup$hype2csvURL)){
@@ -2529,6 +2584,9 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
         }
       }
     }
+    ## list all files in output folder:
+    outFiles=dir(outDir,all.files = F,full.names = T,recursive = F)
+    
   }else if(appSetup$appName=="forecast"){
     
     # add hindcast and forecast subfolders to outDir
@@ -2540,12 +2598,22 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
     # loop over hindcast and forecast
     for(k in 1:2){
       
-      # copy log-files from rundir to outdirs
-      hyssLogFile = dir(path = appSetup$runDir , pattern =".log")
-      if(app.sys=="tep"){
-        if(length(hyssLogFile)>=k){
-          file.copy(from = paste(appSetup$runDir,hyssLogFile[k],sep="/"), 
-                    to = paste(outDir[k],paste(prefix.log,hyssLogFile[k],sep="_"),sep="/"))
+      if(k==1){
+        prodTag="hindcast"
+      }else{
+        prodTag="forecast"
+      }
+        
+      # copy log-files from rundir to outdirs (only when k==1)
+      if(k==1){
+        hyssLogFile = dir(path = appSetup$runDir, pattern =".log")
+        if(app.sys=="tep"){
+          if(length(hyssLogFile)>=0){
+            for(j in 1:length(hyssLogFile)){
+              file.copy(from = paste(appSetup$runDir,hyssLogFile[j],sep="/"), 
+                        to = paste(outDir[k],paste(prefix.log,hyssLogFile[j],sep="_"),sep="/"))
+            }
+          }
         }
       }
       
@@ -2561,7 +2629,7 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
         for(i in 1:length(timeFiles)){
           if(app.sys=="tep"){
             file.copy(from = paste(appSetup$resDir[k],timeFiles[i],sep="/"), 
-                      to = paste(outDir[k],paste(prefix.tim,timeFiles[i],sep="_"),sep="/"))
+                      to = paste(outDir[k],paste(prefix.tim,prodTag,timeFiles[i],sep="_"),sep="/"))
           }
         }
       }
@@ -2570,7 +2638,7 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
         for(i in 1:length(mapFiles)){
           if(app.sys=="tep"){
             file.copy(from = paste(appSetup$resDir[k],mapFiles[i],sep="/"), 
-                      to = paste(outDir[k],paste(prefix.map,mapFiles[i],sep="_"),sep="/"))
+                      to = paste(outDir[k],paste(prefix.map,prodTag,mapFiles[i],sep="_"),sep="/"))
           }
         }
       }
@@ -2579,7 +2647,7 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
         for(i in 1:length(subassFiles)){
           if(app.sys=="tep"){
             file.copy(from = paste(appSetup$resDir[k],subassFiles[i],sep="/"), 
-                      to = paste(outDir[k],paste(prefix.oth,subassFiles[i],sep="_"),sep="/"))
+                      to = paste(outDir[k],paste(prefix.oth,prodTag,subassFiles[i],sep="_"),sep="/"))
           }
         }
       }
@@ -2587,7 +2655,7 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
       if(length(simassFile)>0){
         if(app.sys=="tep"){
           file.copy(from = paste(appSetup$resDir[k],simassFile[i],sep="/"), 
-                    to = paste(outDir[k],paste(prefix.oth,simassFile[i],sep="_"),sep="/"))
+                    to = paste(outDir[k],paste(prefix.oth,prodTag,simassFile[i],sep="_"),sep="/"))
         }
       }
       
@@ -2607,14 +2675,14 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
                   if(substr(allFiles[j],1,nj-ni)==substr(zeroString,1,nj-ni)){
                     if(app.sys=="tep"){
                       file.copy(from = paste(appSetup$resDir[k],allFiles[j],sep="/"), 
-                                to = paste(outDir[k],paste(prefix.bas,allFiles[j],sep="_"),sep="/"))
+                                to = paste(outDir[k],paste(prefix.bas,prodTag,allFiles[j],sep="_"),sep="/"))
                       basinFiles=c(basinFiles,allFiles[j])
                     }
                   }
                 }else{
                   if(app.sys=="tep"){
                     file.copy(from = paste(appSetup$resDir[k],allFiles[j],sep="/"), 
-                              to = paste(outDir[k],paste(prefix.bas,allFiles[j],sep="_"),sep="/"))
+                              to = paste(outDir[k],paste(prefix.bas,prodTag,allFiles[j],sep="_"),sep="/"))
                     basinFiles=c(basinFiles,allFiles[j])
                   }
                 }
@@ -2627,7 +2695,7 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
       if(length(basinFiles)>0){
         for(i in 1:length(basinFiles)){
           resCsv = basinfiles2csv(hypeFile=paste(appSetup$resDir[k],basinFiles[i],sep="/"),
-                                  csvFile=paste(outDir[k],paste(prefix.csv,"_",substr(basinFiles[i],1,nchar(basinFiles[i])-3),"csv",sep=""),sep="/"),
+                                  csvFile=paste(outDir[k],paste(prefix.csv,"_",prodTag,"_",substr(basinFiles[i],1,nchar(basinFiles[i])-3),"csv",sep=""),sep="/"),
                                   hype2csvFile=hype2csvFile,assimOn=appInput$assimOn)
         }
       }
@@ -2654,7 +2722,7 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
                              appSetup$modelName,
                              hype2csvFile,
                              rpFile,
-                             prefix.img,
+                             paste(prefix.img,"_forecast",sep=""),
                              sep=" ")
               if(app.sys=="tep"){rciop.log ("DEBUG", paste(" trying forecast basin plot script:  ",syscmd,sep=""), "/util/R/hypeapps-utils.R")}
               plotres = system(command = syscmd,intern = T)
@@ -2677,8 +2745,8 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
           name.hypeout = "timeCOUT.txt"
           if(file.exists(paste(appSetup$resDir[2],name.hypeout,sep="/"))){
             name.retlev  = appSetup$rpFileCOUT
-            name.wl.txt  = paste(prefix.wl.txt,"_mapWarningLevel.txt",sep="")
-            name.wl.png  = paste(prefix.wl.png,"_mapWarningLevel.png",sep="")
+            name.wl.txt  = paste(prefix.wl.txt,"_forecast_mapWarningLevel.txt",sep="")
+            name.wl.png  = paste(prefix.wl.png,"_forecast_mapWarningLevel.png",sep="")
             rdataFile    = appSetup$shapefileRdata
           
             syscmd = paste(app.rscript4plotting,"--vanilla --slave --quite",
@@ -2699,15 +2767,28 @@ prepareHypeAppsOutput<-function(appSetup=NULL,appInput=NULL,modelInput=NULL,mode
         }
       }  
     }
-    outDir = paste(appSetup$tmpDir,'output',sep="/")
+    #outDir = paste(appSetup$tmpDir,'output',sep="/")
+    
+    ## list all files in output folders:
+    outFiles=dir(outDir[1],all.files = F,full.names = T,recursive = F)
+    outFiles=c(outFiles,dir(outDir[2],all.files = F,full.names = T,recursive = F))
+    
   }
-  ## return outDir
-  return(outDir)
+#  ## return outDir
+#  return(outDir)
+
+  ## return outFiles
+  return(outFiles)
+  
 }
 
 # functions for application logfile that will be published as part of application results
-appLogOpen<-function(appName,tmpDir){
-  fileName=paste(tmpDir,"/","hypeapps-",appName,"-logfile.txt",sep="")
+appLogOpen<-function(appName,tmpDir,appDate,prefix=NULL){
+  fileName=paste(appDate,"_","hypeapps-",appName,".log",sep="")
+  if(!is.null(prefix)){
+    fileName = paste(prefix,"_",fileName,sep="")
+  }
+  fileName = paste(tmpDir,"/",fileName,sep="")
   fileConn<-file(fileName,open="wt")
   writeLines(paste("hypeapps-",appName," starting, ",as.character(date()),sep=""),fileConn)
   return(list("fileName"=fileName,"fileConn"=fileConn))
